@@ -1,98 +1,197 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { GameBoard } from '@/components/game/GameBoard';
+import { ScoreDisplay } from '@/components/game/ScoreDisplay';
+import { GameOverModal } from '@/components/game/GameOverModal';
+
+import { GameState, Direction } from '@/types/game';
+import { 
+  initializeGame, 
+  moveTiles, 
+  generateRandomTile, 
+  checkGameOver, 
+  checkWin,
+  saveBestScore,
+  loadBestScore
+} from '@/utils/gameLogic';
+import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const [gameState, setGameState] = useState<GameState>(() => initializeGame());
+  const [showGameOver, setShowGameOver] = useState(false);
+  const colorScheme = useColorScheme();
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
+  useEffect(() => {
+    loadBestScore().then(score => {
+      setGameState(prev => ({ ...prev, bestScore: score }));
+    });
+  }, []);
+
+  useEffect(() => {
+    if (gameState.score > gameState.bestScore) {
+      setGameState(prev => ({ ...prev, bestScore: prev.score }));
+      saveBestScore(gameState.score);
+    }
+  }, [gameState.score, gameState.bestScore]);
+
+  useEffect(() => {
+    if (gameState.isGameOver || gameState.hasWon) {
+      setShowGameOver(true);
+    }
+  }, [gameState.isGameOver, gameState.hasWon]);
+
+  const handleMove = (direction: Direction) => {
+    if (gameState.isGameOver || gameState.hasWon) return;
+
+    const { newBoard, scoreIncrease, moved } = moveTiles(gameState.board, direction);
+    
+    if (!moved) return;
+
+    // Clear animation flags
+    for (let row = 0; row < newBoard.length; row++) {
+      for (let col = 0; col < newBoard[row].length; col++) {
+        if (newBoard[row][col]) {
+          newBoard[row][col]!.isNew = false;
+          newBoard[row][col]!.isMerged = false;
+        }
+      }
+    }
+
+    // Add new tile
+    const newTile = generateRandomTile(newBoard);
+    if (newTile) {
+      newBoard[newTile.position.row][newTile.position.col] = newTile;
+    }
+
+    const newScore = gameState.score + scoreIncrease;
+    const isGameOver = checkGameOver(newBoard);
+    const hasWon = checkWin(newBoard);
+
+    setGameState({
+      board: newBoard,
+      score: newScore,
+      bestScore: Math.max(gameState.bestScore, newScore),
+      isGameOver,
+      hasWon,
+    });
+  };
+
+  const resetGame = () => {
+    const newGame = initializeGame();
+    newGame.bestScore = gameState.bestScore;
+    setGameState(newGame);
+    setShowGameOver(false);
+  };
+
+  const goToHome = () => {
+    // For now, just reset the game since we're already on the home tab
+    resetGame();
+  };
+
+  return (
+    <SafeAreaView style={[
+      styles.container,
+      { backgroundColor: Colors[colorScheme ?? 'light'].background }
+    ]}>
+      <ThemedView style={styles.header}>
+        <ThemedText type="title" style={styles.title}>2048 Evolution</ThemedText>
+        <ThemedText style={styles.subtitle}>
+          Merge civilization stages to evolve from Stone to Space Colony!
         </ThemedText>
       </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
+
+      <ScoreDisplay 
+        currentScore={gameState.score} 
+        bestScore={gameState.bestScore} 
+      />
+
+      <GameBoard 
+        board={gameState.board} 
+        onMove={handleMove}
+      />
+
+      <ThemedView style={styles.controls}>
+        <TouchableOpacity
+          style={[
+            styles.button,
+            { backgroundColor: Colors[colorScheme ?? 'light'].tint }
+          ]}
+          onPress={resetGame}
+        >
+          <Text style={styles.buttonText}>New Game</Text>
+        </TouchableOpacity>
+      </ThemedView>
+
+      <ThemedView style={styles.instructions}>
+        <ThemedText style={styles.instructionText}>
+          Swipe to move tiles. When two tiles with the same stage touch, they merge into one!
         </ThemedText>
       </ThemedView>
-    </ParallaxScrollView>
+
+      <GameOverModal
+        visible={showGameOver}
+        hasWon={gameState.hasWon}
+        score={gameState.score}
+        bestScore={gameState.bestScore}
+        onPlayAgain={resetGame}
+        onGoHome={goToHome}
+      />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
   },
-  stepContainer: {
-    gap: 8,
+  header: {
+    alignItems: 'center',
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: 'bold',
     marginBottom: 8,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  subtitle: {
+    fontSize: 16,
+    textAlign: 'center',
+    opacity: 0.8,
+    lineHeight: 22,
+  },
+  controls: {
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  button: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 25,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  instructions: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  instructionText: {
+    fontSize: 14,
+    textAlign: 'center',
+    opacity: 0.7,
+    lineHeight: 20,
   },
 });
