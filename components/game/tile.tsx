@@ -26,7 +26,7 @@ export function Tile({ tile, size }: TileProps) {
         withTiming(1.1, { duration: 150 }),
         withSpring(1, { damping: 10, stiffness: 200 })
       ) : 
-      withSpring(1);
+      1;
 
     return {
       transform: [{ scale }],
@@ -65,14 +65,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
   emoji: {
     fontSize: 20,

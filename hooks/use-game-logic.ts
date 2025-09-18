@@ -1,4 +1,41 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
+
+// Simple storage abstraction that works on web and mobile
+const Storage = {
+  async getItem(key: string): Promise<string | null> {
+    if (Platform.OS === 'web') {
+      try {
+        return localStorage.getItem(key);
+      } catch {
+        return null;
+      }
+    } else {
+      try {
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+        return await AsyncStorage.getItem(key);
+      } catch {
+        return null;
+      }
+    }
+  },
+
+  async setItem(key: string, value: string): Promise<void> {
+    if (Platform.OS === 'web') {
+      try {
+        localStorage.setItem(key, value);
+      } catch {
+        // ignore
+      }
+    } else {
+      try {
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+        await AsyncStorage.setItem(key, value);
+      } catch {
+        // ignore
+      }
+    }
+  },
+};
 import { 
   GameBoard, 
   GameState, 
@@ -290,7 +327,7 @@ export function makeMove(gameState: GameState, direction: Direction): GameState 
  */
 export async function getBestScore(): Promise<number> {
   try {
-    const score = await AsyncStorage.getItem(BEST_SCORE_KEY);
+    const score = await Storage.getItem(BEST_SCORE_KEY);
     return score ? parseInt(score, 10) : 0;
   } catch (error) {
     console.warn('Failed to load best score:', error);
@@ -303,7 +340,7 @@ export async function getBestScore(): Promise<number> {
  */
 export async function saveBestScore(score: number): Promise<void> {
   try {
-    await AsyncStorage.setItem(BEST_SCORE_KEY, score.toString());
+    await Storage.setItem(BEST_SCORE_KEY, score.toString());
   } catch (error) {
     console.warn('Failed to save best score:', error);
   }
