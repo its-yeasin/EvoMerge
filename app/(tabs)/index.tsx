@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -45,7 +45,7 @@ export default function HomeScreen() {
     }
   }, [gameState.isGameOver, gameState.hasWon]);
 
-  const handleMove = (direction: Direction) => {
+  const handleMove = useCallback((direction: Direction) => {
     if (gameState.isGameOver || gameState.hasWon) return;
 
     const { newBoard, scoreIncrease, moved } = moveTiles(gameState.board, direction);
@@ -79,7 +79,38 @@ export default function HomeScreen() {
       isGameOver,
       hasWon,
     });
-  };
+  }, [gameState]);
+
+  // Add keyboard controls for web
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      if (gameState.isGameOver || gameState.hasWon) return;
+      
+      switch (event.key) {
+        case 'ArrowUp':
+          event.preventDefault();
+          handleMove('up');
+          break;
+        case 'ArrowDown':
+          event.preventDefault();
+          handleMove('down');
+          break;
+        case 'ArrowLeft':
+          event.preventDefault();
+          handleMove('left');
+          break;
+        case 'ArrowRight':
+          event.preventDefault();
+          handleMove('right');
+          break;
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('keydown', handleKeyPress);
+      return () => window.removeEventListener('keydown', handleKeyPress);
+    }
+  }, [gameState.isGameOver, gameState.hasWon, handleMove]);
 
   const resetGame = () => {
     const newGame = initializeGame();
@@ -129,7 +160,7 @@ export default function HomeScreen() {
 
       <ThemedView style={styles.instructions}>
         <ThemedText style={styles.instructionText}>
-          Swipe to move tiles. When two tiles with the same stage touch, they merge into one!
+          Swipe to move tiles or use arrow keys (↑↓←→). When two tiles with the same stage touch, they merge into one!
         </ThemedText>
       </ThemedView>
 
